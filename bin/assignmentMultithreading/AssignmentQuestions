@@ -1,0 +1,247 @@
+1. Write a multithreaded program that will accept 4 strings from the command line
+and search in a particular file for a given string and display the status of each search on the screen.
+
+Note that, all threads are operating on the same file.
+
+2. Write a Java application that will accept two filenames (text files) as command line 
+arguments and use two threads to read contents from the two text files. Each of the threads should sleep for a random time after displaying filename with each line. 
+
+3.Write a java application that will create and start two threads. 
+One thread will read a text file (Number.txt) containing five positive integers one on each line. 
+The second thread should calculate factorial of the number read by the first thread and print the message on the screen as “Factorial of x is y” ,here x is number & y is factorial of the number
+The two threads should work in synchronization. Handle all necessary exceptions.   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+=================================================================
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+
+class SearchThread extends Thread {
+    private String fileName;
+    private String stringToSearch;
+
+    public SearchThread(String fileName, String stringToSearch) {
+        this.fileName = fileName;
+        this.stringToSearch = stringToSearch;
+    }
+
+    @Override
+    public void run() {
+        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.contains(stringToSearch)) {
+                    System.out.println("String '" + stringToSearch + "' found in file.");
+                    return;
+                }
+            }
+            System.out.println("String '" + stringToSearch + "' not found in file.");
+        } catch (IOException e) {
+            System.out.println("Error reading file: " + e.getMessage());
+        }
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        if (args.length != 5) {
+            System.out.println("Usage: java Main <file_name> <string1> <string2> <string3> <string4>");
+            System.exit(1);
+        }
+
+        String fileName = args[0];
+        String[] stringsToSearch = new String[args.length - 1];
+
+        for (int i = 1; i < args.length; i++) {
+            stringsToSearch[i - 1] = args[i];
+        }
+
+        SearchThread[] threads = new SearchThread[stringsToSearch.length];
+        int i = 0;
+        for (String stringToSearch : stringsToSearch) {
+            threads[i] = new SearchThread(fileName, stringToSearch);
+            threads[i].start();
+            i++;
+        }
+
+        for (SearchThread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                System.out.println("Error waiting for thread: " + e.getMessage());
+            }
+        }
+    }
+}
+___________________________________________________________________________
+List<SearchThread> threads = new ArrayList<>();
+for (String stringToSearch : stringsToSearch) {
+    SearchThread thread = new SearchThread(fileName, stringToSearch);
+    thread.start();
+    threads.add(thread);
+}
+
+for (SearchThread thread : threads) {
+    try {
+        thread.join();
+    } catch (InterruptedException e) {
+        System.out.println("Error waiting for thread: " + e.getMessage());
+    }
+}
+
+
+=================================================================
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.Random;
+
+class FileReaderThread extends Thread {
+    private String fileName;
+
+    public FileReaderThread(String fileName) {
+        this.fileName = fileName;
+    }
+
+    @Override
+    public void run() {
+        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                System.out.println(fileName + ": " + line);
+                sleepRandomly();
+            }
+        } catch (IOException e) {
+            System.out.println("Error reading file: " + e.getMessage());
+        }
+    }
+
+    private void sleepRandomly() {
+        Random random = new Random();
+        int sleepTime = random.nextInt(1000) + 100; // sleep for 100-1100 ms
+        try {
+            Thread.sleep(sleepTime);
+        } catch (InterruptedException e) {
+            System.out.println("Error sleeping: " + e.getMessage());
+        }
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        if (args.length != 2) {
+            System.out.println("Usage: java Main <file1> <file2>");
+            System.exit(1);
+        }
+
+        String file1 = args[0];
+        String file2 = args[1];
+
+        FileReaderThread thread1 = new FileReaderThread(file1);
+        FileReaderThread thread2 = new FileReaderThread(file2);
+
+        thread1.start();
+        thread2.start();
+    }
+}
+
+=================================================================
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+
+class FileReaderThread extends Thread {
+    private String fileName;
+
+    public FileReaderThread(String fileName) {
+        this.fileName = fileName;
+    }
+
+    @Override
+    public void run() {
+        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                int number = Integer.parseInt(line);
+                synchronized (this) {
+                    notify();
+                    wait(); // wait for CalculatorThread to calculate and print factorial
+                }
+                System.out.println("Read: " + number);
+            }
+        } catch (IOException e) {
+            System.out.println("Error reading file: " + e.getMessage());
+        } catch (InterruptedException e) {
+            System.out.println("Error waiting: " + e.getMessage());
+        }
+    }
+}
+
+class CalculatorThread extends Thread {
+    private FileReaderThread fileReaderThread;
+
+    public CalculatorThread(FileReaderThread fileReaderThread) {
+        this.fileReaderThread = fileReaderThread;
+    }
+
+    @Override
+    public void run() {
+        while (true) {
+            synchronized (fileReaderThread) {
+                try {
+                    fileReaderThread.wait(); // wait for FileReaderThread to read a number
+                } catch (InterruptedException e) {
+                    System.out.println("Error waiting: " + e.getMessage());
+                }
+                try {
+                    Thread.sleep(100); // simulate some calculation time
+                } catch (InterruptedException e) {
+                    System.out.println("Error sleeping: " + e.getMessage());
+                }
+                System.out.println("Calculating...");
+                int number = Integer.parseInt(fileReaderThread.fileName + ".txt"); // get the last read number
+                long factorial = calculateFactorial(number);
+                System.out.println("Factorial of " + number + " is " + factorial);
+                fileReaderThread.notify(); // notify FileReaderThread to read next number
+            }
+        }
+    }
+
+    private long calculateFactorial(int number) {
+        long factorial = 1;
+        for (int i = 1; i <= number; i++) {
+            factorial *= i;
+        }
+        return factorial;
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        FileReaderThread fileReaderThread = new FileReaderThread("Number.txt");
+        CalculatorThread calculatorThread = new CalculatorThread(fileReaderThread);
+
+        fileReaderThread.start();
+        calculatorThread.start();
+    }
+}
